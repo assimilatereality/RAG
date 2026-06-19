@@ -1,0 +1,69 @@
+# =============================================================
+# File: docker-compose.yml
+# =============================================================
+# Full verses-rag stack: Qdrant + FastAPI backend + Streamlit UI.
+#
+# Run:    docker compose up -d --build
+# Logs:   docker compose logs -f api
+# Stop:   docker compose down            (data persists in ./qdrant_storage)
+# Wipe:   docker compose down -v         (removes Qdrant volume too)
+#
+# PREREQUISITES on the host:
+#   1. Ollama running with qwen3:1.7b pulled  (ollama serve; ollama pull qwen3:1.7b)
+#      Containers reach it via host.docker.internal:11434 (set below).
+#   2. .env file present with OPENAI_API_KEY, ANTHROPIC_API_KEY, and the
+#      LANGSMITH__* / GRADE__* overrides you've been using.
+#
+# NOTE: the corpus at /Volumes/X10 Pro/RAG is NOT mounted — the running app
+# queries Qdrant and doesn't need it. To re-ingest inside Docker, uncomment
+# the volume under the `api` service and run the indexer via `docker compose exec`.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.17.1
+    container_name: verses-rag-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./qdrant_storage:/qdrant/storage
+    environment:
+      QDRANT__LOG_LEVEL: INFO
+
+  api:
+    build: .
+    container_name: verses-rag-api
+    restart: unless-stopped
+    command: uv run uvicorn verses_rag.api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Override service URLs so the container reaches Qdrant (sibling service)
+      # and Ollama (host). These win over .env via Pydantic precedence.
+      QDRANT__URL: http://qdrant:6333
+      GENERATION__BASE_URL: http://host.docker.internal:11434
+    volumes:
+      - hf_cache:/app/.hf_cache          # persist model downloads across restarts
+      # - "/Volumes/X10 Pro/RAG:/corpus:ro"   # uncomment to enable in-container ingest
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets the container reach host Ollama
+    depends_on:
+      - qdrant
+
+  web:
+    build: .
+    container_name: verses-rag-web
+    restart: unless-stopped
+    command: uv run streamlit run src/verses_rag/web/app.py --server.address 0.0.0.0 --server.port 8501
+    ports:
+      - "8501:8501"
+    environment:
+      API_URL: http://api:8000        # Streamlit reaches the backend by service name
+    depends_on:
+      - api
+
+volumes:
+  hf_cache:

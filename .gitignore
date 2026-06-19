@@ -1,0 +1,43 @@
+# Environment
+.env
+.venv/
+
+# Qdrant persistent storage (large, local only)
+qdrant_storage/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# uv
+.uv/
+
+# HuggingFace / SentenceTransformers model cache
+.hf_cache/
+~/.cache/huggingface/
+
+# pytest
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Ruff
+.ruff_cache/
+
+# macOS
+.DS_Store
+
+# Docker
+*.tar
+
+# LangSmith / tracing artifacts (if any local output)
+langsmith_runs/
+
+# Editor
+.vscode/
+.idea/
+*.swp
